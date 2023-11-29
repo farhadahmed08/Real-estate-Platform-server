@@ -4,7 +4,7 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 require('dotenv').config()
 const port = process.env.PORT || 5000;
-const { MongoClient } = require('mongodb');
+const { MongoClient, ObjectId } = require('mongodb');
 
 
 //middleware
@@ -26,6 +26,9 @@ async function run() {
     await client.connect();
 
     const userCollection = client.db("realEstateDb").collection("users");
+    const reviewCollection = client.db("realEstateDb").collection("reviews");
+    const propertyCollection = client.db("realEstateDb").collection("properties");
+    const advertiseCollection = client.db("realEstateDb").collection("advertise");
 
 
     //jwt related api
@@ -34,7 +37,7 @@ async function run() {
       const token = jwt.sign(user,process.env.ACCESS_TOKEN_SECRET,{
         expiresIn:'1h'
       });
-      console.log(token)
+      // console.log(token)
       // res.send({token:token})
       res.send({token}); //short hand
     })
@@ -64,9 +67,39 @@ async function run() {
     })
 
 
+    //properties
+    
+    app.get('/properties', async(req,res)=>{
+      
+      const result = await propertyCollection.find().toArray();
+      res.send(result);
+    });
+
+    app.get('/properties/:id', async(req, res) =>{
+      const id = req.params.id;
+      const query = {_id: new ObjectId(id)}
+      console.log(query)
+      const result = await propertyCollection.findOne(query);
+      res.send(result);
+  });
 
 
 
+      //advertise
+    
+      app.get('/advertise', async(req,res)=>{
+      
+        const result = await advertiseCollection.find().toArray();
+        res.send(result);
+      });
+
+
+
+//reviews
+    app.get('/reviews', async(req, res) =>{
+      const result = await reviewCollection.find().toArray();
+      res.send(result);
+  })
 
 
     // Send a ping to confirm a successful connection
