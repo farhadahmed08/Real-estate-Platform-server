@@ -29,6 +29,7 @@ async function run() {
     const reviewCollection = client.db("realEstateDb").collection("reviews");
     const propertyCollection = client.db("realEstateDb").collection("properties");
     const advertiseCollection = client.db("realEstateDb").collection("advertise");
+    const wishListCollection = client.db("realEstateDb").collection("wishList");
 
 
     //jwt related api
@@ -78,7 +79,7 @@ async function run() {
 
 
      //user related api
-     app.get('/users',verifyToken ,async(req,res)=>{
+     app.get('/users',verifyToken,verifyAdmin,async(req,res)=>{
       
       const result = await userCollection.find().toArray();
       res.send(result);
@@ -105,6 +106,26 @@ async function run() {
 
 
 
+    app.get('/users/agent/:email', verifyToken, async(req,res)=>{
+      const email = req.params.email;
+      if (email !== req.decoded?.email) {
+        return res.status(403).send({message:'forbidden access'})
+      }
+
+      const query = {email: email};
+      const user = await userCollection.findOne(query);
+      let agent = false;
+      if (user) {
+       agent = user?.role ==='agent'
+      }
+      res.send({agent});
+
+
+
+    })
+
+
+
 
 
 
@@ -124,12 +145,29 @@ async function run() {
     })
 
 
-    app.patch('/users/admin/:id',verifyToken,async(req,res)=>{
+    app.patch('/users/admin/:id',verifyToken,verifyAdmin,async(req,res)=>{
       const id = req.params.id;
       const filter = {_id : new ObjectId(id)};
       const updatedDoc ={
         $set:{
           role:'admin'
+        }
+      }
+      const result = await userCollection.updateOne(filter,updatedDoc)
+      res.send(result)
+
+
+
+    })
+    
+    
+    
+    app.patch('/users/agent/:id',verifyToken,verifyAdmin,async(req,res)=>{
+      const id = req.params.id;
+      const filter = {_id : new ObjectId(id)};
+      const updatedDoc ={
+        $set:{
+          role:'agent'
         }
       }
       const result = await userCollection.updateOne(filter,updatedDoc)
@@ -174,6 +212,21 @@ async function run() {
       
         const result = await advertiseCollection.find().toArray();
         res.send(result);
+      });
+
+// wishlist
+      app.get('/wishList', async(req, res) =>{
+        const email = req.query.email;
+        const query = {email:email};
+          const result = await wishListCollection.find(query).toArray();
+          res.send(result);
+      });
+
+
+      app.post('/wishList',async(req,res)=>{
+        const wishListItem = req.body;
+        const result = await wishListCollection.insertOne(wishListItem);
+        res.send(result)
       });
 
 
