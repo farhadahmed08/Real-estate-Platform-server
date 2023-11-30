@@ -204,6 +204,12 @@ async function run() {
       res.send(result);
   });
 
+  app.post('/properties',verifyToken,async(req,res)=>{
+    const item = req.body;
+    const result = await propertyCollection.insertOne(item);
+    res.send(result)
+  })
+
 
 
       //advertise
