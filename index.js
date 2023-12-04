@@ -4,7 +4,7 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 require('dotenv').config()
 const port = process.env.PORT || 5000;
-const { MongoClient, ObjectId } = require('mongodb');
+const { MongoClient, ObjectId,ServerApiVersion  } = require('mongodb');
 
 
 //middleware
@@ -14,22 +14,29 @@ app.use(express.json());
 
 
 
-
-const uri = "mongodb://0.0.0.0:27017/";
+const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.qaohrfy.mongodb.net/?retryWrites=true&w=majority`;
+// const uri = "mongodb://0.0.0.0:27017/";
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
-const client = new MongoClient(uri);
+const client = new MongoClient(uri, {
+  serverApi: {
+    version: ServerApiVersion.v1,
+    strict: true,
+    deprecationErrors: true,
+  }
+});
 
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+    // await client.connect();
 
     const userCollection = client.db("realEstateDb").collection("users");
     const reviewCollection = client.db("realEstateDb").collection("reviews");
     const propertyCollection = client.db("realEstateDb").collection("properties");
     const advertiseCollection = client.db("realEstateDb").collection("advertise");
     const wishListCollection = client.db("realEstateDb").collection("wishList");
+    const agentAddedItemsCollection = client.db('realEstateDb').collection('agentAddedItems');
 
 
     //jwt related api
@@ -200,13 +207,43 @@ async function run() {
     })
 
 
+    //pagination
+    app.get('/propertyCount', async(req, res) =>{
+      const count = await propertyCollection.estimatedDocumentCount();
+      res.send({count});
+  });
+
+
     //properties
     
     app.get('/properties', async(req,res)=>{
+      const page =parseInt(req.query.page);
+      const size = parseInt(req.query.size);
+      const filter = req.query;
+      console.log(filter)
+       const query ={
+      //   // price:{$gt:10}
+        
+      title:{$regex:filter.search,$options: "i"}
+       };
+       const options = {
+      //   // Sort matched documents in descending order by rating
+          sort: { 
+            price: filter.sort === 'asc' ? 1 :  -1
+           },
+
+       
+        
+      };
       
-      const result = await propertyCollection.find().toArray();
-      res.send(result);
-    });
+      const cursor = propertyCollection.find(query, options);
+        
+        const result = await cursor
+        .skip(page*size)
+        .limit(size)
+        .toArray();
+        res.send(result);
+      });
 
     app.get('/properties/:id', async(req, res) =>{
       const id = req.params.id;
@@ -221,6 +258,15 @@ async function run() {
     const result = await propertyCollection.insertOne(item);
     res.send(result)
   })
+
+
+  app.delete('/properties/:id',verifyToken,verifyAdmin, async(req,res)=>{
+    const id = req.params.id;
+    const query = {_id: new ObjectId(id)}
+    const result = await propertyCollection.deleteOne(query);
+    res.send(result);
+  })
+
 
 
 
@@ -265,9 +311,95 @@ async function run() {
   })
 
 
+
+  app.post('/reviews',async(req,res)=>{
+    const reviewsListItem = req.body;
+    const result = await reviewCollection.insertOne(reviewsListItem);
+    res.send(result)
+  });
+
+
+
+
+
+  app.delete('/reviews/:id',async(req,res)=>{
+    const id = req.params.id;
+    const query = {_id:new ObjectId(id)}
+    const result = await reviewCollection.deleteOne(query);
+    res.send(result);
+  })
+
+
+  //agent added
+
+
+  app.get('/myAdded', async(req, res) =>{
+    const email = req.query.email;
+    const query = {email:email};
+      const result = await agentAddedItemsCollection.find(query).toArray();
+      res.send(result);
+  });
+
+
+  app.get("/myAdded/:id", async (req, res) => {
+    const id = req.params.id;
+    const query = { _id: new ObjectId(id) };
+    const result = await agentAddedItemsCollection.findOne(query);
+    res.send(result);
+  });
+
+
+
+
+
+
+  app.post('/myAdded',async(req,res)=>{
+    const agentAddedItem = req.body;
+    const result = await agentAddedItemsCollection.insertOne(agentAddedItem);
+    res.send(result)
+  });
+
+
+  app.patch('/myAdded/:id', async (req, res) => {
+    const item = req.body;
+    const id = req.params.id;
+    const filter = { _id:new ObjectId (id) }
+    const updatedDoc = {
+      $set: {
+        name: item.name,
+        category: item.category,
+        email:item.email,
+        price: item.price,
+        origin:item.origin,
+        quantity: item.quantity,
+        image: item.image
+      }
+    }
+
+    const result = await agentAddedItemsCollection.updateOne(filter, updatedDoc)
+    res.send(result);
+  })
+
+
+
+  app.delete('/myAdded/:id', async(req,res)=>{
+    const id = req.params.id;
+    const query = {_id:new ObjectId (id)}
+    const result = await agentAddedItemsCollection.deleteOne(query);
+    res.send(result);
+  })
+  
+
+
+
+
+
+
+
+
     // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
+    // await client.db("admin").command({ ping: 1 });
+    // console.log("Pinged your deployment. You successfully connected to MongoDB!");
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
